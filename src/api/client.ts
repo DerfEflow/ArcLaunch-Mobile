@@ -1,8 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { store } from '@/store';
-import { setAuthTokens, clearAuth } from '@/store/slices/auth';
 
 const API_BASE_URL = 'https://arclaunch.net';
 const TOKEN_STORAGE_KEY = 'auth_tokens';
@@ -17,7 +15,16 @@ export interface OfflineRequest {
   retries: number;
 }
 
-class APIClient {
+// Callback for auth failures (called by app when 401 received)
+let onAuthFailure: (() => void) | null = null;
+
+// Callback for sync status updates
+let onSyncStatusChange: ((status: 'syncing' | 'synced' | 'error') => void) | null = null;
+
+// Callback for offline queue length updates
+let onQueueLengthChange: ((length: number) => void) | null = null;
+
+export class APIClient {
   private axios: AxiosInstance;
   private offlineQueue: OfflineRequest[] = [];
   private isOnline = true;
@@ -44,19 +51,30 @@ class APIClient {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor: handle 401 by refreshing token
+    // Response interceptor: handle 401
     this.axios.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          store.dispatch(clearAuth());
-          // Navigate to auth screen handled by navigation middleware
+        if (error.response?.status === 401 && onAuthFailure) {
+          onAuthFailure();
         }
         return Promise.reject(error);
       }
     );
 
     this.loadOfflineQueue();
+  }
+
+  setAuthFailureCallback(callback: () => void): void {
+    onAuthFailure = callback;
+  }
+
+  setSyncStatusCallback(callback: (status: 'syncing' | 'synced' | 'error') => void): void {
+    onSyncStatusChange = callback;
+  }
+
+  setQueueLengthCallback(callback: (length: number) => void): void {
+    onQueueLengthChange = callback;
   }
 
   private async getAuthToken(): Promise<string | null> {
@@ -118,7 +136,7 @@ class APIClient {
     };
     this.offlineQueue.push(request);
     await this.saveOfflineQueue();
-    store.dispatch(setOfflineQueueLength(this.offlineQueue.length));
+    if (onQueueLengthChange) onQueueLengthChange(this.offlineQueue.length);
   }
 
   async request(
@@ -178,7 +196,7 @@ class APIClient {
     }
 
     this.isSyncing = true;
-    store.dispatch(setSyncStatus('syncing'));
+    if (onSyncStatusChange) onSyncStatusChange('syncing');
 
     try {
       const toSync = [...this.offlineQueue];
@@ -205,11 +223,13 @@ class APIClient {
 
       this.offlineQueue = failed;
       await this.saveOfflineQueue();
-      store.dispatch(setOfflineQueueLength(this.offlineQueue.length));
-      store.dispatch(setSyncStatus(this.offlineQueue.length === 0 ? 'synced' : 'error'));
+      if (onQueueLengthChange) onQueueLengthChange(this.offlineQueue.length);
+      if (onSyncStatusChange) {
+        onSyncStatusChange(this.offlineQueue.length === 0 ? 'synced' : 'error');
+      }
     } catch (error) {
       console.error('Offline queue sync error:', error);
-      store.dispatch(setSyncStatus('error'));
+      if (onSyncStatusChange) onSyncStatusChange('error');
     } finally {
       this.isSyncing = false;
     }
@@ -222,19 +242,8 @@ class APIClient {
   async clearOfflineQueue(): Promise<void> {
     this.offlineQueue = [];
     await this.saveOfflineQueue();
-    store.dispatch(setOfflineQueueLength(0));
+    if (onQueueLengthChange) onQueueLengthChange(0);
   }
 }
-
-// Import sync actions (will be defined in store)
-const setOfflineQueueLength = (length: number) => ({
-  type: 'sync/setOfflineQueueLength',
-  payload: length,
-});
-
-const setSyncStatus = (status: 'syncing' | 'synced' | 'error') => ({
-  type: 'sync/setSyncStatus',
-  payload: status,
-});
 
 export const apiClient = new APIClient();
