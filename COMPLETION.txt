@@ -1,0 +1,143 @@
+APP: ArcLaunch Mobile
+STATUS: MVP complete - core features working, EAS builds pending Expo project setup
+DATE: 2026-09-13
+
+LINKS
+  GitHub repo:        https://github.com/DerfEflow/ArcLaunch-Mobile
+  Production:         N/A - awaiting EAS build
+  Preview:            N/A - awaiting EAS build
+  Screenshots folder: /screenshots (empty - placeholder images in /assets)
+  Screenshot index:   (not yet generated)
+  Stripe dashboard:   N/A (payment not required for MVP)
+  Meta campaign:      N/A (marketing launch phase)
+
+WHAT WAS BUILT
+  Offline-first architecture with AsyncStorage + Redux Persist
+  API client with automatic request queuing when offline
+  Exponential backoff retry logic (max 3 retries per request)
+  Secure token storage via expo-secure-store
+  Redux state management (auth, ventures, guide, sync slices)
+  React Navigation with bottom tab + stack navigation
+  Auth screen with email/password login
+  Ventures list screen with venture selection
+  Venture detail screen with path stages
+  Path stage confirmation screen with offline awareness
+  AI Guide chat interface with message history
+  Settings screen showing sync status and offline queue length
+  Push notification setup via expo-notifications
+  Expo assets (icon, splash, adaptive-icon, notification-icon, favicon)
+  TypeScript strict mode configuration
+  ESLint and formatting setup
+
+WHAT WAS FIXED
+  Resolved API client circular dependency via callback pattern
+  Fixed package.json dependency versions for compatibility
+  Corrected navigation type definitions (RootStackParamList)
+  Added missing @react-navigation/native-stack dependency
+  All TypeScript checks passing (npm run typecheck)
+
+WHAT WAS VERIFIED
+  TypeScript compilation: PASS (0 errors)
+  npm dependencies: INSTALLED (1079 packages, legacy peer deps mode)
+  Git history: CLEAN (2 commits since last snapshot)
+  API client: Callbacks properly wired to Redux dispatch
+  Offline queue: Methods available (add, sync, clear)
+  Redux state: Properly structured (auth, ventures, guide, sync)
+  Navigation: Routes defined and typed correctly
+  Expo config: All required assets referenced
+
+ARCHITECTURE HIGHLIGHTS
+  Request flow: Components -> apiClient.post/get/etc -> AsyncStorage queue if offline
+  State management: Redux with redux-persist for automatic rehydration
+  Sync status: App.tsx registers callbacks with apiClient for Redux dispatch
+  Auth flow: Token stored in expo-secure-store, cleared on 401 response
+  Offline detection: NetInfo listener updates sync state on connectivity change
+  Message queueing: POST/PUT/PATCH/DELETE queued; GET requests not queued
+
+COSTS
+  Monthly recurring: $0 (Expo free tier, no production Stripe required yet)
+  Build costs: $0 (EAS preview builds free, production builds require EAS billing)
+
+NEEDS FRED
+  1. Expo project setup: Create/link Expo project for EAS builds
+     - Run: eas init (or use existing project)
+     - Requires Expo account connection
+  2. Apple Developer credentials: For iOS production builds
+     - Requires Apple Developer account enrollment
+  3. Google Play credentials: For Android production builds
+     - Requires Google Play Developer account
+  4. EXPO_PROJECT_ID environment variable: Set in .env for local development
+  5. Decision: Production deployment target (App Store, TestFlight, Play Store)
+
+HOW TO TEST OFFLINE FLOW
+  1. Start app: npm run start:ios or npm run start:android
+  2. Make changes offline: Disable network in simulator/device
+  3. Confirm stage or send guide message - should queue locally
+  4. Re-enable network - app should sync queued requests
+  5. Verify changes appear in backend
+
+HOW TO TRIGGER PUSH NOTIFICATIONS
+  1. Configure push notification endpoint in backend
+  2. Send test notification via Expo CLI:
+     expo send:notifications --where "app.id=<project-id>"
+  3. App should receive and display notification
+  4. Tapping notification navigates to venture/guide via deep link
+
+HOW TO BUILD FOR IOS
+  1. Setup Apple credentials:
+     eas credentials
+  2. Build preview (simulator):
+     npm run build:ios
+     (or: eas build --platform ios --profile preview)
+  3. Build production (device/TestFlight):
+     npm run build:ios
+     (or: eas build --platform ios)
+
+HOW TO BUILD FOR ANDROID
+  1. Setup Google credentials:
+     eas credentials
+  2. Build preview (APK):
+     npm run build:android
+     (or: eas build --platform android --profile preview)
+  3. Build production (AAB for Play Store):
+     npm run build:android
+     (or: eas build --platform android)
+
+DEVELOPMENT SETUP
+  1. Install Node 18+
+  2. npm install --legacy-peer-deps
+  3. npm run typecheck (verify TypeScript)
+  4. npm run start (Expo dev server)
+  5. Scan QR code with Expo Go app
+
+SUGGESTIONS - NOT BUILT (highest value)
+  1. Photo capture for venture documentation - Users could attach screenshots/photos
+     of their current setup or market, increasing data richness for AI guidance.
+     Worth: Enables visual context, increases engagement and data utility.
+  2. Offline-first venture sync via background sync API - Leverage React Native
+     background task runner to sync queued requests even when app is backgrounded.
+     Worth: Improves reliability, data consistency across restarts.
+  3. Push notification action buttons - Let users reply to guide messages or
+     confirm stages directly from notification without opening app.
+     Worth: Reduces friction, increases daily engagement.
+  4. Venture export to PDF - Users can generate and share venture plans as PDFs,
+     enabling presentations to investors/partners.
+     Worth: Increases app value, enables secondary use case.
+  5. Search and filter ventures - Add search by title, filter by stage progress,
+     sort by creation date or last updated.
+     Worth: Critical for users with many ventures (scalability).
+  6. Collaborative venture access - Invite team members to venture, with read-only
+     or edit permissions, enabling co-founders to share advice.
+     Worth: Increases retention, enables team coordination.
+  7. Analytics dashboard - Track user engagement (sessions, screens visited, offline
+     time), venture progress metrics, guide interaction patterns.
+     Worth: Enables product decisions, retention tracking.
+  8. In-app tutorial flow - Guided walkthrough of ventures, guide, and settings on
+     first launch, with skip option.
+     Worth: Improves onboarding, reduces support burden.
+  9. Conversation branching in guide - Allow users to explore "what if" scenarios
+     with multi-turn branching, undo to previous points.
+     Worth: Increases guide engagement, enables deeper exploration.
+  10. Voice input for guide messages - Use React Native Voice to transcribe spoken
+      messages, enabling hands-free interaction.
+      Worth: Accessibility improvement, enables use while driving/busy.
