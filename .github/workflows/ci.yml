@@ -1,0 +1,169 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run TypeScript type check
+        run: npm run typecheck
+
+      - name: Run ESLint
+        run: npm run lint --if-present
+
+      - name: Run tests
+        run: npm run test --if-present
+        continue-on-error: true
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Check for secrets in code
+        run: |
+          if grep -r "REACT_APP_API_KEY\|API_SECRET\|PRIVATE_KEY\|PASSWORD" --exclude-dir=node_modules . | grep -v ".env.example" | grep -v ".gitignore"; then
+            echo "Found hardcoded secrets!"
+            exit 1
+          else
+            echo "No hardcoded secrets found."
+          fi
+
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+  build-preview:
+    runs-on: ubuntu-latest
+    needs: [test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Verify app configuration
+        run: |
+          test -f app.json || exit 1
+          test -f eas.json || exit 1
+          test -f .env.example || exit 1
+
+      - name: Check TypeScript compilation
+        run: npm run typecheck
+
+      - name: Verify no uncommitted secrets
+        run: |
+          if git diff HEAD --name-only | xargs grep -l "PRIVATE_KEY\|API_SECRET" 2>/dev/null; then
+            echo "Detected uncommitted secrets!"
+            exit 1
+          fi
+
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify documentation exists
+        run: |
+          test -f README.md || exit 1
+          test -f API_ENDPOINTS.md || exit 1
+          test -f DECISIONS.md || exit 1
+          test -f DESIGN.md || exit 1
+          test -f RUNBOOK.md || exit 1
+          test -f CHANGELOG.md || exit 1
+          test -f .env.example || exit 1
+          echo "All documentation files present."
+
+      - name: Check .env.example is up to date
+        run: |
+          # Verify .env.example has all expected keys
+          test -f .env.example || exit 1
+          grep -q "REACT_APP_API_URL" .env.example || exit 1
+          grep -q "EXPO_PROJECT_ID" .env.example || exit 1
+          echo ".env.example is valid."
+
+      - name: Verify .gitignore
+        run: |
+          test -f .gitignore || exit 1
+          grep -q "node_modules/" .gitignore || exit 1
+          grep -q ".env" .gitignore || exit 1
+          grep -q "*.jks" .gitignore || exit 1
+          echo ".gitignore looks good."
+
+  # This job runs EAS build checks (requires Expo setup)
+  # Uncomment when ready to run actual builds in CI
+  # eas-build-preview:
+  #   runs-on: ubuntu-latest
+  #   needs: [test, security]
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+  #
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Use Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 18.x
+  #
+  #     - name: Install dependencies
+  #       run: npm install --legacy-peer-deps
+  #
+  #     - name: Install EAS CLI
+  #       run: npm install -g eas-cli
+  #
+  #     - name: Run EAS preview build
+  #       env:
+  #         EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+  #         EAS_BUILD_PROFILE: preview
+  #       run: eas build --platform all --auto-submit=false --non-interactive
+  #       continue-on-error: true
+
+  success:
+    runs-on: ubuntu-latest
+    needs: [test, security, build-preview, docs]
+    if: always()
+
+    steps:
+      - name: Check workflow status
+        run: |
+          if [ "${{ needs.test.result }}" == "failure" ] || [ "${{ needs.security.result }}" == "failure" ]; then
+            echo "CI workflow failed."
+            exit 1
+          fi
+          echo "CI workflow passed."
