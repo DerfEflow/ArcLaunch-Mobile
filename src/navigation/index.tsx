@@ -16,6 +16,8 @@ import SettingsScreen from '@/screens/Settings';
 export type RootStackParamList = {
   Auth: undefined;
   MainApp: undefined;
+  VentureDetail: { id: string };
+  PathStage: { ventureId: string; stageId: string };
 };
 
 export type MainAppStackParamList = {
